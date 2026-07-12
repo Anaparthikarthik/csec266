@@ -41,7 +41,9 @@
   const owner = 'Anaparthikarthik';
   const repo = 'csec266';
   const branch = 'main';
+
   const apiUrl = `https://api.github.com/repos/${owner}/${repo}/git/trees/${branch}?recursive=1`;
+
   const listArea = document.getElementById('listArea');
   const filterInput = document.getElementById('filter');
   const refreshBtn = document.getElementById('refresh');
@@ -51,63 +53,52 @@
 
   function render(filter){
     const out = document.createElement('ul');
-    const f = (filter||'').trim().toLowerCase();
-    const shown = files.filter(file => {
-      if(!f) return true;
-      return file.path.toLowerCase().includes(f) || file.name.toLowerCase().includes(f);
-    });
+    const f = (filter || '').toLowerCase();
+
+    const shown = files.filter(file =>
+      file.path.toLowerCase().includes(f)
+    );
 
     if(shown.length === 0){
-      listArea.innerHTML = '<div class="empty">No files match the filter.</div>';
-    } else {
-      shown.forEach(item => {
-        const li = document.createElement('li');
-        const a = document.createElement('a');
-        const githubUrl = `https://github.com/${owner}/${repo}/blob/${branch}/${encodeURIComponent(item.path).replace(/%2F/g,'/')}`;
-        a.href = githubUrl;
-        a.target = '_blank';
-        a.rel = 'noopener noreferrer';
-        a.textContent = item.path;
-        const meta = document.createElement('div'); meta.className='meta'; meta.textContent = `${item.size} bytes`;
-        li.appendChild(a);
-        li.appendChild(meta);
-        out.appendChild(li);
-      });
-      listArea.innerHTML = '';
-      listArea.appendChild(out);
+      listArea.innerHTML = '<div class="empty">No files found.</div>';
+      return;
     }
+
+    shown.forEach(item=>{
+      const li = document.createElement('li');
+
+      const a = document.createElement('a');
+      a.href = `https://github.com/${owner}/${repo}/blob/${branch}/${item.path}`;
+      a.target = "_blank";
+      a.textContent = item.path;
+
+      li.appendChild(a);
+      out.appendChild(li);
+    });
+
+    listArea.innerHTML = "";
+    listArea.appendChild(out);
     countEl.textContent = `${shown.length} / ${files.length}`;
   }
 
-  function showError(msg){
-    listArea.innerHTML = `<div class="error">${msg}</div>`;
-    countEl.textContent = '—';
-  }
-
   function load(){
-    listArea.innerHTML = '<div class="empty">Loading file list from GitHub…</div>';
     fetch(apiUrl)
-      .then(res => {
-        if(res.status === 404) throw new Error('Repository or branch not found (404).');
-        if(res.status === 403) throw new Error('API rate limit or access denied (403).');
-        return res.json();
+      .then(r=>r.json())
+      .then(data=>{
+        files = data.tree
+          .filter(x=>x.type==="blob")
+          .map(x=>({path:x.path}));
+
+        render("");
       })
-      .then(data => {
-        if(!data || !data.tree) throw new Error('Unexpected API response.');
-        // tree entries: { path, mode, type, sha, size }
-        files = data.tree.filter(e => e.type === 'blob').map(e => ({ path: e.path, size: e.size || 0, name: e.path.split('/').pop() }));
-        files.sort((a,b)=> a.path.localeCompare(b.path));
-        render(filterInput.value);
-      })
-      .catch(err => {
-        showError('Error loading files: ' + err.message + ' You can view files directly on GitHub.');
+      .catch(()=>{
+        listArea.innerHTML = "<h3>Unable to load repository.</h3>";
       });
   }
 
-  refreshBtn.addEventListener('click', ()=> load());
-  filterInput.addEventListener('input', ()=> render(filterInput.value));
+  filterInput.addEventListener("input",()=>render(filterInput.value));
+  refreshBtn.addEventListener("click",load);
 
-  // initial load
   load();
 })();
 </script>
